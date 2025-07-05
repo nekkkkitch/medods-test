@@ -53,10 +53,10 @@ func New(cfg *Config) (JWT, error) {
 	return jwt, nil
 }
 
-func (j *JWT) CreateAccessToken(id uuid.UUID, tokenID uuid.UUID) (string, error) {
+func (j *JWT) CreateAccessToken(id uuid.UUID, tokenID uuid.UUID, userAgent, ip string) (string, error) {
 	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodRS512, jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.AccessTokenExpiration)),
-		Subject:   id.String() + "/" + tokenID.String(),
+		Subject:   id.String() + "*/" + tokenID.String() + "*/" + userAgent + "*/" + ip,
 	}).SignedString(j.PrivateKey)
 	if err != nil {
 		slog.Error("JWT: CreateAccessToken:", "error", err)

@@ -6,6 +6,7 @@ import (
 	"medods_test/pkg/cerr"
 	"medods_test/pkg/models"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -17,15 +18,15 @@ type DB interface {
 }
 
 type JWT interface {
-	CreateAccessToken(id uuid.UUID, tokenID uuid.UUID) (string, error)
+	CreateAccessToken(id uuid.UUID, tokenID uuid.UUID, userAgent, ip string) (string, error)
 	CreateRefreshToken(tokenID uuid.UUID) (string, error)
 	GetSubjectFromToken(token string) (string, error)
 	GetIDFromRefreshToken(token string) (uuid.UUID, error)
 }
 
-func (s Service) CreateTokens(id uuid.UUID) (*models.Tokens, error) {
+func (s Service) CreateTokens(id uuid.UUID, userAgent, ip string) (*models.Tokens, error) {
 	tokensID := uuid.New()
-	access, err := s.j.CreateAccessToken(id, tokensID)
+	access, err := s.j.CreateAccessToken(id, tokensID, userAgent, ip)
 	if err != nil {
 		return nil, err
 	}
@@ -48,10 +49,24 @@ func (s Service) CreateTokens(id uuid.UUID) (*models.Tokens, error) {
 	return &models.Tokens{AccessToken: access, RefreshToken: refresh}, nil
 }
 
-func (s Service) RefreshTokens(tokens models.Tokens) (*models.Tokens, error) {
-	id, accessID, err := s.getAccessData(tokens.AccessToken)
+func (s Service) RefreshTokens(tokens models.Tokens, userAgent, ip string) (*models.Tokens, error) {
+	data, err := s.getAccessData(tokens.AccessToken)
 	if err != nil {
 		return nil, err
+	}
+
+	id := data[0]
+	accessID := data[1]
+	tokenAgent := data[2]
+	tokenIP := data[3]
+
+	if tokenAgent != userAgent {
+		s.KillTokens(tokens.AccessToken)
+		return nil, cerr.UserAgentMismatch
+	}
+
+	if tokenIP != ip {
+		s.sendMockAttentionMessage(ip)
 	}
 
 	userID, err := uuid.Parse(id)
@@ -84,14 +99,17 @@ func (s Service) RefreshTokens(tokens models.Tokens) (*models.Tokens, error) {
 		return nil, cerr.IDDontMatch
 	}
 
-	return s.CreateTokens(userID)
+	return s.CreateTokens(userID, userAgent, ip)
 }
 
 func (s Service) GetID(accessToken string) (uuid.UUID, error) {
-	id, accessID, err := s.getAccessData(accessToken)
+	data, err := s.getAccessData(accessToken)
 	if err != nil {
 		return uuid.Nil, err
 	}
+
+	id := data[0]
+	accessID := data[1]
 
 	userID, err := uuid.Parse(id)
 	if err != nil {
@@ -133,7 +151,20 @@ func (s Service) KillTokens(accessToken string) error {
 		return err
 	}
 
-	_, err = s.CreateTokens(id)
+	tokensID := uuid.New()
+
+	refresh, err := s.j.CreateRefreshToken(tokensID)
+	if err != nil {
+		return err
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(refresh), bcrypt.DefaultCost)
+	if err != nil {
+		slog.Error("Service: can't generate hash from token:", "error", err)
+		return err
+	}
+
+	err = s.db.UpdateRefreshToken(id, hash)
 	if err != nil {
 		return err
 	}
@@ -141,12 +172,17 @@ func (s Service) KillTokens(accessToken string) error {
 	return nil
 }
 
-func (s *Service) getAccessData(accessToken string) (string, string, error) {
+func (s *Service) getAccessData(accessToken string) ([]string, error) {
 	accessSubject, err := s.j.GetSubjectFromToken(accessToken)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
-	accessData := strings.Split(accessSubject, "/")
-	id, accessID := accessData[0], accessData[1]
-	return id, accessID, nil
+	accessData := strings.Split(accessSubject, "*/")
+	return accessData, nil
+}
+
+func (s *Service) sendMockAttentionMessage(ip string) error {
+	slog.Info("User refreshed tokens from another ip:", "ip", ip)
+	time.Sleep(time.Millisecond * 300)
+	return nil
 }

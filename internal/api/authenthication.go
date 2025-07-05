@@ -10,8 +10,8 @@ import (
 )
 
 type Service interface {
-	CreateTokens(id uuid.UUID) (*models.Tokens, error)
-	RefreshTokens(models.Tokens) (*models.Tokens, error)
+	CreateTokens(id uuid.UUID, userAgent string, ip string) (*models.Tokens, error)
+	RefreshTokens(tokens models.Tokens, userAgent string, ip string) (*models.Tokens, error)
 	GetID(string) (uuid.UUID, error)
 	KillTokens(string) error
 }
@@ -31,7 +31,9 @@ func (a *API) CreateTokens(c *fiber.Ctx) error {
 		slog.Error("API: CreateTokens: can't parse given uuid", "error", err)
 		return fiber.NewError(400, "can't parse given uuid")
 	}
-	tokens, err := a.service.CreateTokens(userID)
+	userAgent := c.GetReqHeaders()["User-Agent"][0]
+	ip := c.Context().RemoteAddr().String()
+	tokens, err := a.service.CreateTokens(userID, userAgent, ip)
 	if err != nil {
 		c.Status(500)
 		return err
@@ -52,7 +54,9 @@ func (a *API) CreateTokens(c *fiber.Ctx) error {
 // @Router		/refresh [get]
 func (a *API) RefreshTokens(c *fiber.Ctx) error {
 	tokens := models.Tokens{AccessToken: c.Cookies("access_token"), RefreshToken: c.Cookies("refresh_token")}
-	refreshedTokens, err := a.service.RefreshTokens(tokens)
+	userAgent := c.GetReqHeaders()["User-Agent"][0]
+	ip := c.Context().RemoteAddr().String()
+	refreshedTokens, err := a.service.RefreshTokens(tokens, userAgent, ip)
 	if err != nil {
 		if err.Error() == cerr.RefreshDontMatch.Error() {
 			return fiber.NewError(400, cerr.RefreshDontMatch.Error())
