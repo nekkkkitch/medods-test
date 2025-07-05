@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16
+    environment: 
+      POSTGRES_DB: "medods"
+      POSTGRES_USER: "nekkkkitch"
+      POSTGRES_PASSWORD: "123"
+    ports:
+      - "5435:5435"
+    volumes:
+      - ./.database/postgres/data:/var/lib/postgresql/data
+      - ./dbInit/dbInit.sql:/docker-entrypoint-initdb.d/init.sql
+  api:
+    build:
+      dockerfile: ./Dockerfile
+      context: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db

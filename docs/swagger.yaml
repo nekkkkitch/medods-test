@@ -1,0 +1,109 @@
+definitions:
+  models.Tokens:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /id:
+    get:
+      operationId: GetUUID
+      parameters:
+      - description: access_token
+        in: header
+        name: Cookie
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Creates tokens based of given token
+      tags:
+      - Authentication
+  /refresh:
+    get:
+      operationId: RefreshTokens
+      parameters:
+      - description: access_token
+        in: header
+        name: Cookie
+        required: true
+        type: string
+      - description: refresh_token
+        in: header
+        name: Cookie
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Tokens'
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Refreshes tokens
+      tags:
+      - Authentication
+  /tokens:
+    delete:
+      operationId: KillTokens
+      parameters:
+      - description: access_token
+        in: header
+        name: Cookie
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Makes current tokens unusable
+      tags:
+      - Authentication
+  /tokens/{id}:
+    get:
+      operationId: CreateTokens
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Tokens'
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Creates tokens based off given uuid
+      tags:
+      - Authentication
+swagger: "2.0"
